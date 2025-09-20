@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+
+# IDEs
+.idea/
+.vscode/
+
+# Environment variables
+.env
+.flaskenv
+
+# OS
+.DS_Store # macOS
+Thumbs.db # Windows
+
+# Tests
+.pytest_cache/
