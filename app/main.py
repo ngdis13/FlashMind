@@ -1,64 +1,102 @@
-from fastapi import FastAPI
-from pydantic import BaseModel
+from typing import List
 
+from database.database import SimpleDB
+from fastapi import FastAPI, HTTPException
+from schemas import (
+    TopicBase,
+    TopicCreate,
+    TopicRead,
+    TopicUpdate,
+)
+
+
+db = SimpleDB()
 
 app = FastAPI()
 
 
-# Создание модели данных для пользователя
-class User(BaseModel):
-    username: str
-    user_info: str
+@app.get("/topics", response_model=List[TopicBase])
+async def read_topics():
+    """Функция для чтения всех существующих тем
+
+    Returns:
+        List[TopicBase]: Pydantic-модель, представляющая все существующие темы
+    """
+    topics = db.get_all_topics()
+    return [
+        TopicRead(id=topic[0], name=topic[1], description=topic[2], created_at=topic[3], updated_at=topic[4])
+        for topic in topics
+    ]
 
 
-fake_db = [{"username": "vasya", "user_info": "любит колбасу"}, {"username": "katya", "user_info": "любит петь"}]
+@app.get("/topics/{topic_id}", response_model=TopicRead)
+async def read_topic(topic_id: int):
+    """Функция возвращающая тему по его id номеру
 
-fake_users = {
-    1: {"username": "john_doe", "email": "john@example.com"},
-    2: {"username": "jane_smith", "email": "jane@example.com"},
-    3: {"username": "alice_jones", "email": "alice@example.com"},
-    4: {"username": "bob_white", "email": "bob@example.com"},
-}
+    Args:
+        topic_id (int): id необходимой темы
 
+    Raises:
+        HTTPException: ошибка в случае если тема не найдена(не существует)
 
-@app.get("/users/")
-def read_users(username: str = None, email: str = None, limit: int = 10):
-    filtered_users = fake_users
-
-    if username:
-        filtered_users = {
-            key: user for key, user in filtered_users.items() if username.lower() in user["username"].lower()
-        }
-
-    if email:
-        filtered_users = {key: user for key, user in filtered_users.items() if email.lower() in user["email"].lower()}
-
-    return dict(list(filtered_users.items())[:limit])
+    Returns:
+        TopicRead: Pydantic-модель, представляющая тему с указанным id
+    """
+    topic = db.get_topic(topic_id)
+    if not topic:
+        raise HTTPException(status_code=404, detail="Тема не найдена")
+    return TopicRead(id=topic[0], name=topic[1], description=topic[2], created_at=topic[3], updated_at=topic[4])
 
 
-@app.post("/add_user", response_model=User)
-async def add_user(user: User):
-    fake_db.append(({"username": user.username, "user_info": user.user_info}))
-    return user
+@app.post("/topics", response_model=TopicRead, status_code=201)
+async def create_topics(topic: TopicCreate):
+    """Функция для создания новой темы
+
+    Args:
+        topic (TopicCreate): Pydantic-модель, содержащая данные для новой темы.
+
+    Returns:
+        TopicRead: Pydantic-модель, представляющая созданную тему.
+    """
+    new_topic = db.create_topic(topic.name, topic.description)
+    return TopicRead(
+        id=new_topic[0], name=new_topic[1], description=new_topic[2], created_at=new_topic[3], updated_at=new_topic[4]
+    )
 
 
-@app.get("/users/{user_id}")
-def get_user(user_id: int):
-    if user_id in fake_users:
-        return fake_users[user_id]
-    return {"error": "not found this user"}
+@app.patch("/topics/{topic_id}", response_model=TopicRead)
+async def update_topic(topic_id: int, topic_update: TopicUpdate):
+    """Функция, обновляющая существующую тему
+
+    Args:
+        topic_id (int): id темы
+        topic_update (TopicUpdate): Pydantic-модель, содержащая новые данные для темы
+
+    Raises:
+        HTTPException: генерирует ошибку, если такой темы не существует
+
+    Returns:
+        TopicRead: Pydantic-модель, представляющая обновленную тему
+    """
+    topic = db.update_topic(topic_id, topic_update.name, topic_update.description)
+    if not topic:
+        raise HTTPException(status_code=404, detail="Тема не найдена")
+    return TopicRead(id=topic[0], name=topic[1], description=topic[2], created_at=topic[3], updated_at=topic[4])
 
 
-# feedback самостоятельная работа
-fake_feedback = {"Kris": "Все было замечательно"}
+@app.delete("/topics/{topic_id}", status_code=202)
+async def delete_topic(topic_id: int):
+    """Функция, удаляющая тему по id
 
+    Args:
+        topic_id (int): id темы
 
-class Feedback(BaseModel):
-    name: str
-    message: str
+    Raises:
+        HTTPException: генерирует ошибку, если такой темы не существует
 
-
-@app.post("/feedback")
-async def add_feedback(feedback: Feedback):
-    fake_feedback[feedback.name] = feedback.message
-    return {"message": f"Feedback received. Thank you, {feedback.name}."}
+    Returns:
+        object: информирование о успешном удалении
+    """
+    if not db.delete_topic(topic_id):
+        raise HTTPException(status_code=404, detail="Тема не найдена")
+    return {"status": "accepted"}
