@@ -3,7 +3,7 @@ from datetime import datetime
 
 
 class SimpleDB:
-    """Класс упарвляющий базой данных"""
+    """Класс управляющий базой данных"""
 
     def __init__(self, db_file="flashcards.db"):
         self.db_file = db_file
@@ -48,7 +48,6 @@ class SimpleDB:
         self.conn.close()
 
     # Функции для работы с темами карточек
-
     def get_all_topics(self):
         """Функция, возвращающая список тем
 
