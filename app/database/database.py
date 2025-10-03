@@ -47,6 +47,8 @@ class SimpleDB:
         """Функция для закрытия базы данных"""
         self.conn.close()
 
+    # Функции для работы с темами карточек
+
     def get_all_topics(self):
         """Функция, возвращающая список тем
 
@@ -105,6 +107,38 @@ class SimpleDB:
         self.conn.commit()
         return self.get_topic(self.cursor.lastrowid)
 
+    def update_topic(self, topic_id, name=None, description=None):
+        """Функция для обновления существующей темы
+
+        Args:
+            topic_id (int): id темы
+            name (str, optional): Название темы. Defaults to None.
+            description (str, optional): Описание темы. Defaults to None.
+
+        Returns:
+            object: возвращает обновленный обьект с информацией о теме
+        """
+        now = datetime.now().isoformat()
+        update_fields = []
+        params = []
+        if name:
+            update_fields.append("name = ?")
+            params.append(name)
+        if description:
+            update_fields.append("description = ?")
+            params.append(description)
+
+        update_fields.append("updated_at = ?")
+        params.append(now)
+        params.append(topic_id)
+
+        if update_fields:
+            query = f"UPDATE topics SET {', '.join(update_fields)} WHERE id = ?"
+            self.cursor.execute(query, params)
+            self.conn.commit()
+            return self.get_topic(topic_id)
+        return None
+
     def delete_topic(self, topic_id):
         """Удаляет тему по id
 
@@ -119,6 +153,7 @@ class SimpleDB:
         # информирование о том что тема была удалена
         return self.cursor.rowcount > 0
 
+    # Функции для работы с карточками
     def get_all_flashcards(self):
         """Функция, возвращающая все существующие карточки
 
@@ -178,6 +213,44 @@ class SimpleDB:
         self.conn.commit()
         return self.get_flashcard(self.cursor.lastrowid)
 
+    def update_flashcard(
+        self, flashcard_id, topic_id=None, question=None, answer=None, difficulty_level=None, last_reviewed_at=None
+    ):
+        now = datetime.now().isoformat()
+        update_fields = []
+        params = []
+
+        if topic_id:
+            update_fields.append("topic_id = ?")
+            params.append(topic_id)
+
+        if question:
+            update_fields.append("question = ?")
+            params.append(question)
+
+        if answer:
+            update_fields.append("answer = ?")
+            params.append(answer)
+
+        if difficulty_level:
+            update_fields.append("difficulty_level = ?")
+            params.append(difficulty_level)
+
+        if last_reviewed_at:
+            update_fields.append("last_reviewed_at = ?")
+            params.append(last_reviewed_at)
+
+        update_fields.append("updated_at = ?")
+        params.append(now)
+        params.append(flashcard_id)
+
+        if update_fields:
+            query = f"UPDATE flashcards SET {', '.join(update_fields)} WHERE id = ?"
+            self.cursor.execute(query, flashcard_id)
+            self.conn.commit()
+            return self.get_flashcard(flashcard_id)
+        return None
+
     def get_flashcards_by_topic(self, topic_id):
         """Возвращает все карточки в определенной теме
 
@@ -215,4 +288,5 @@ if __name__ == "__main__":
         "Число b является пределом числовой последовательности {aₙ}, если для любого сколь угодно малого положительного числа ε (эпсилон) найдется такое натуральное число N, что для всех номеров n > N будет выполняться условие |aₙ - b| < ε. ",
         2,
     )
-    print(database.get_flashcards_by_topic(3))
+    database.update_topic(3, "Искусственный интеллект", "Основы работы с иишкой")
+    print(database.get_all_topics())
