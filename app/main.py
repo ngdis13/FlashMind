@@ -1,18 +1,35 @@
+from datetime import datetime
 from typing import List
 
 from database.database import SimpleDB
 from fastapi import FastAPI, HTTPException
 from schemas import (
+    FlashcardCreate,
+    FlashcardRead,
+    FlashcardUpdate,
     TopicBase,
     TopicCreate,
     TopicRead,
     TopicUpdate,
 )
+from starlette import status
 
 
 db = SimpleDB()
 
 app = FastAPI()
+
+
+def get_db():
+    """
+    Функция-зависимость FastAPI для получения экземпляра базы данных.
+    Создает новое соединение для каждого запроса и закрывает его после.
+    """
+    db_instance = SimpleDB()  # 1. Создаем новый объект SimpleDB (новое соединение)
+    try:
+        yield db_instance  # 2. Передаем его в обработчик FastAPI
+    finally:
+        db_instance.close()  # 3. Гарантированно закрываем соединение после запроса
 
 
 @app.get("/topics", response_model=List[TopicBase])
@@ -99,4 +116,168 @@ async def delete_topic(topic_id: int):
     """
     if not db.delete_topic(topic_id):
         raise HTTPException(status_code=404, detail="Тема не найдена")
+    return {"status": "accepted"}
+
+
+@app.get("/flashcards", response_model=List[FlashcardRead])
+async def read_flashcards():
+    """Функция для чтения всех существующих карточек
+
+    Returns:
+        List[FlashcardRead]: Pydantic модель со списком всех существующих карточек
+    """
+    flashcards = db.get_all_flashcards()
+    return [
+        FlashcardRead(
+            id=flashcard[0],
+            topic_id=flashcard[1],
+            question=flashcard[2],
+            answer=flashcard[3],
+            difficulty_level=flashcard[4],
+            last_reviewed_at=flashcard[5],
+            created_at=flashcard[6],
+            updated_at=flashcard[7],
+        )
+        for flashcard in flashcards
+    ]
+
+
+@app.get("/flashcards/{flashcard_id}", response_model=FlashcardRead)
+async def read_flashcard(flashcard_id: int):
+    """Функция для чтения карточки по id
+
+    Args:
+        flashcard_id (int): id карточки
+
+    Raises:
+        HTTPException: генерируется в случае, если карточка не найдена
+
+    Returns:
+        FlashcardRead: Pydantic модель с карточкой
+    """
+    flashcard = db.get_flashcard_by_id(flashcard_id)
+    if not flashcard:
+        raise HTTPException(status_code=404, detail="Карточка не найдена")
+    return FlashcardRead(
+        id=flashcard_id,
+        topic_id=flashcard[1],
+        question=flashcard[2],
+        answer=flashcard[3],
+        difficulty_level=flashcard[4],
+        last_reviewed_at=flashcard[5],
+        created_at=flashcard[6],
+        updated_at=flashcard[7],
+    )
+
+
+@app.post("/topics/{topic_id}/flashcards", response_model=FlashcardRead, status_code=201)
+async def create_flashcard(topic_id: int, flashcard: FlashcardCreate):
+    """Функция для создания новой карточки по определенной теме
+
+    Args:
+        topic_id (int): id темы карточки
+        flashcard (FlashcardCreate): данные для новой карточки
+
+    Raises:
+        HTTPException: генерируется в случае, если тема не найдена
+
+    Returns:
+        FlashcardRead: Pydantic модель с карточкой
+    """
+    topic = db.get_topic(topic_id)
+    if not topic:
+        raise HTTPException(status_code=404, detail="Тема не найдена")
+    new_flashcard = db.create_flashcard(topic_id, flashcard.question, flashcard.answer, flashcard.difficulty_level)
+    return FlashcardRead(
+        id=new_flashcard[0],
+        topic_id=new_flashcard[1],
+        question=new_flashcard[2],
+        answer=new_flashcard[3],
+        difficulty_level=new_flashcard[4],
+        last_reviewed_at=new_flashcard[5],
+        created_at=new_flashcard[6],
+        updated_at=new_flashcard[7],
+    )
+
+
+@app.get("/topics/{topic_id}/flashcards", response_model=List[FlashcardRead])
+async def read_flashcards_by_topic_id(topic_id: int):
+    """Функция для получения всех карточек по определенной теме
+
+    Args:
+        topic_id (int): id темы
+
+    Raises:
+        HTTPException: генерируется в случае, если тема не найдена
+
+    Returns:
+        List[FlashcardRead]: Pydantic модель со всеми карточками по запрошенной теме
+    """
+    topic = db.get_topic(topic_id)
+    if not topic:
+        raise HTTPException(status_code=404, detail="Тема не найдена")
+    flashcards = db.get_flashcards_by_topic(topic_id)
+    return [
+        FlashcardRead(
+            id=flashcard[0],
+            topic_id=flashcard[1],
+            question=flashcard[2],
+            answer=flashcard[3],
+            difficulty_level=flashcard[4],
+            last_reviewed_at=flashcard[5],
+            created_at=flashcard[6],
+            updated_at=flashcard[7],
+        )
+        for flashcard in flashcards
+    ]
+
+
+@app.patch("/flashcards/{flashcard_id}", response_model=FlashcardRead)
+async def update_flashcard(flashcard_id: int, flashcard_update: FlashcardUpdate):
+    flashcard = db.update_flashcard(
+        flashcard_id,
+        topic_id=flashcard_update.topic_id,
+        question=flashcard_update.question,
+        answer=flashcard_update.answer,
+        difficulty_level=flashcard_update.difficulty_level,
+        last_reviewed_at=flashcard_update.last_reviewed_at,
+    )
+    if not flashcard:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Карточка с указанным id не найдена")
+
+    last_reviewed_at_val = None
+    if flashcard[5]:
+        try:
+            last_reviewed_at_val = datetime.fromisoformat(flashcard[5])
+        except ValueError:
+            print(f"Warning: Could not parse last_reviewed_at: {flashcard[5]} for flashcard ID {flashcard[0]}")
+            last_reviewed_at_val = None
+
+    return FlashcardRead(
+        id=flashcard[0],
+        topic_id=flashcard[1],
+        question=flashcard[2],
+        answer=flashcard[3],
+        difficulty_level=flashcard[4],
+        last_reviewed_at=last_reviewed_at_val,
+        created_at=flashcard[6],
+        updated_at=flashcard[7],
+    )
+
+
+@app.delete("/flashcards/{flashcard_id}", status_code=202)
+async def delete_flashcard(flashcard_id: int):
+    """Функция для удаления карточки по id
+
+    Args:
+        flashcard_id (int): id карточки
+
+    Raises:
+        HTTPException: генерируется, если карточка не была найдена
+
+    Returns:
+        object: сообщение об успехе удаления карточки
+    """
+    if not db.delete_flashcard(flashcard_id):
+        raise HTTPException(status_code=404, detail="Карточка не найдена")
     return {"status": "accepted"}
