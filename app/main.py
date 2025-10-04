@@ -2,7 +2,8 @@ from datetime import datetime
 from typing import List
 
 from database.database import SimpleDB
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 from schemas import (
     FlashcardCreate,
     FlashcardRead,
@@ -16,20 +17,24 @@ from starlette import status
 
 
 db = SimpleDB()
-
 app = FastAPI()
 
 
-def get_db():
+# -- Обработка исключений --
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
     """
-    Функция-зависимость FastAPI для получения экземпляра базы данных.
-    Создает новое соединение для каждого запроса и закрывает его после.
+    Обработчик для всех остальных необработанных исключений (например, ZeroDivisionError, ValueError).
+    Возвращает 500 с кастомным JSON-форматом.
     """
-    db_instance = SimpleDB()  # 1. Создаем новый объект SimpleDB (новое соединение)
-    try:
-        yield db_instance  # 2. Передаем его в обработчик FastAPI
-    finally:
-        db_instance.close()  # 3. Гарантированно закрываем соединение после запроса
+    reason_detail = str(exc)
+
+    if not reason_detail:
+        reason_detail = "Произошла непредвиденная ошибка сервера."
+
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content={"status": 500, "reason": reason_detail}
+    )
 
 
 @app.get("/topics", response_model=List[TopicBase])
@@ -61,7 +66,7 @@ async def read_topic(topic_id: int):
     """
     topic = db.get_topic(topic_id)
     if not topic:
-        raise HTTPException(status_code=404, detail="Тема не найдена")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Тема не найдена")
     return TopicRead(id=topic[0], name=topic[1], description=topic[2], created_at=topic[3], updated_at=topic[4])
 
 
@@ -97,7 +102,7 @@ async def update_topic(topic_id: int, topic_update: TopicUpdate):
     """
     topic = db.update_topic(topic_id, topic_update.name, topic_update.description)
     if not topic:
-        raise HTTPException(status_code=404, detail="Тема не найдена")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Тема не найдена")
     return TopicRead(id=topic[0], name=topic[1], description=topic[2], created_at=topic[3], updated_at=topic[4])
 
 
@@ -115,7 +120,7 @@ async def delete_topic(topic_id: int):
         object: информирование о успешном удалении
     """
     if not db.delete_topic(topic_id):
-        raise HTTPException(status_code=404, detail="Тема не найдена")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Тема не найдена")
     return {"status": "accepted"}
 
 
@@ -157,7 +162,7 @@ async def read_flashcard(flashcard_id: int):
     """
     flashcard = db.get_flashcard_by_id(flashcard_id)
     if not flashcard:
-        raise HTTPException(status_code=404, detail="Карточка не найдена")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Карточка не найдена")
     return FlashcardRead(
         id=flashcard_id,
         topic_id=flashcard[1],
@@ -186,7 +191,7 @@ async def create_flashcard(topic_id: int, flashcard: FlashcardCreate):
     """
     topic = db.get_topic(topic_id)
     if not topic:
-        raise HTTPException(status_code=404, detail="Тема не найдена")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Тема не найдена")
     new_flashcard = db.create_flashcard(topic_id, flashcard.question, flashcard.answer, flashcard.difficulty_level)
     return FlashcardRead(
         id=new_flashcard[0],
@@ -215,7 +220,7 @@ async def read_flashcards_by_topic_id(topic_id: int):
     """
     topic = db.get_topic(topic_id)
     if not topic:
-        raise HTTPException(status_code=404, detail="Тема не найдена")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Тема не найдена")
     flashcards = db.get_flashcards_by_topic(topic_id)
     return [
         FlashcardRead(
@@ -279,5 +284,5 @@ async def delete_flashcard(flashcard_id: int):
         object: сообщение об успехе удаления карточки
     """
     if not db.delete_flashcard(flashcard_id):
-        raise HTTPException(status_code=404, detail="Карточка не найдена")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Карточка не найдена")
     return {"status": "accepted"}
