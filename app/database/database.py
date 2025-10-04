@@ -162,7 +162,7 @@ class SimpleDB:
         self.cursor.execute("SELECT * FROM flashcards")
         return self.cursor.fetchall()
 
-    def get_flashcard(self, flashcard_id):
+    def get_flashcard_by_id(self, flashcard_id):
         """Функция возращающая карточку по id
 
         Args:
@@ -210,7 +210,7 @@ class SimpleDB:
             (topic_id, question, answer, difficulty_level, now, now),
         )
         self.conn.commit()
-        return self.get_flashcard(self.cursor.lastrowid)
+        return self.get_flashcard_by_id(self.cursor.lastrowid)
 
     def update_flashcard(
         self, flashcard_id, topic_id=None, question=None, answer=None, difficulty_level=None, last_reviewed_at=None
@@ -219,35 +219,38 @@ class SimpleDB:
         update_fields = []
         params = []
 
-        if topic_id:
+        if topic_id is not None:
             update_fields.append("topic_id = ?")
             params.append(topic_id)
 
-        if question:
+        if question is not None:
             update_fields.append("question = ?")
             params.append(question)
 
-        if answer:
+        if answer is not None:
             update_fields.append("answer = ?")
             params.append(answer)
 
-        if difficulty_level:
+        if difficulty_level is not None:
             update_fields.append("difficulty_level = ?")
             params.append(difficulty_level)
 
-        if last_reviewed_at:
+        if last_reviewed_at is not None:
             update_fields.append("last_reviewed_at = ?")
-            params.append(last_reviewed_at)
+            if isinstance(last_reviewed_at, datetime):
+                params.append(last_reviewed_at.isoformat())
+            else:
+                params.append(last_reviewed_at)
 
         update_fields.append("updated_at = ?")
         params.append(now)
-        params.append(flashcard_id)
 
         if update_fields:
             query = f"UPDATE flashcards SET {', '.join(update_fields)} WHERE id = ?"
-            self.cursor.execute(query, flashcard_id)
+            params.append(flashcard_id)
+            self.cursor.execute(query, params)
             self.conn.commit()
-            return self.get_flashcard(flashcard_id)
+            return self.get_flashcard_by_id(flashcard_id)
         return None
 
     def get_flashcards_by_topic(self, topic_id):
