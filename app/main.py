@@ -1,12 +1,10 @@
 from datetime import datetime
 from typing import List
 
+from database.database import SimpleDB
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
-from starlette import status
-
-from app.database.database import SimpleDB
-from app.schemas import (
+from schemas import (
     FlashcardCreate,
     FlashcardRead,
     FlashcardUpdate,
@@ -14,6 +12,7 @@ from app.schemas import (
     TopicRead,
     TopicUpdate,
 )
+from starlette import status
 
 
 db = SimpleDB()
