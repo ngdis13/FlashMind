@@ -5,9 +5,9 @@ from datetime import datetime
 class SimpleDB:
     """Класс управляющий базой данных"""
 
-    def __init__(self, db_file="flashcards.db"):
+    def __init__(self, db_file="flashcards.db", check_same_thread: bool = True):
         self.db_file = db_file
-        self.conn = sqlite3.connect(self.db_file)
+        self.conn = sqlite3.connect(self.db_file, check_same_thread=check_same_thread)
         self.cursor = self.conn.cursor()
         self.create_tables()
 

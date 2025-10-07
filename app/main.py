@@ -1,19 +1,19 @@
 from datetime import datetime
 from typing import List
 
-from database.database import SimpleDB
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
-from schemas import (
+from starlette import status
+
+from app.database.database import SimpleDB
+from app.schemas import (
     FlashcardCreate,
     FlashcardRead,
     FlashcardUpdate,
-    TopicBase,
     TopicCreate,
     TopicRead,
     TopicUpdate,
 )
-from starlette import status
 
 
 db = SimpleDB()
@@ -37,10 +37,9 @@ async def general_exception_handler(request: Request, exc: Exception):
     )
 
 
-@app.get("/topics", response_model=List[TopicBase])
+@app.get("/topics", response_model=List[TopicRead])
 async def read_topics():
     """Функция для чтения всех существующих тем
-
     Returns:
         List[TopicBase]: Pydantic-модель, представляющая все существующие темы
     """
